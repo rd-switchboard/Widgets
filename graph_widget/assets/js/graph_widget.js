@@ -25,21 +25,27 @@ d3.graph = function() {
 
     var vis = null,
 	svg = null,
+	zoomContainer = null,
+	graphCountainer = null,
 	point = null,
+	root = null,
 	node = null,
 	target = null,
+//	slider = null,
 	width = getWidth,
 	height = getHeight,
 	force = null,
+	zoom = null,
 	drag = null,
 	gnodes = null,
 	glinks = null,
 	nodes = null, 
 	links = null
-	charge = -1e3,
-	linkDistance = 80,
-	radius = 24,
-	legend = new Set()
+	charge = -0.5e3,
+	linkDistance = 50,
+	radius = 16,
+	legend = new Set(),
+	scale = 1,
 	imgPath = "/applications/apps/graph_widget/assets/images/";
 	
 
@@ -47,16 +53,66 @@ d3.graph = function() {
       * object constructor
       */	
     function graph(container) {
-	vis = container;
+	vis = container
 
 	var w = width(), 
-	    h = height();
+	    h = height()
+
+	force = d3.layout.force() 
+            .size([w, h])
+            .charge(charge) 
+//            .gravity(0)
+            .linkDistance(linkDistance)
+
+	drag = force.drag()
+            .on("dragstart", dragstart)
+            .on("drag", draged)	/*
+            .on("dragend", function(d) {
+		if (d.x < 16 || d.x > w-16 || d.y < 16 || d.y > h-16)
+		    d.fixed = false;
+	    })*/;
+	    
+/*	drag = d3.behavior.drag()
+	    .origin(function(d) { return d; })
+	    .on("dragstart", dragstart)
+	    .on("drag", draged)
+	//    .on("dragend", dragended);
+*/	                    
+
+	zoom = d3.behavior.zoom()
+	    .scaleExtent([1, 2])
+	    .on("zoom", zoomed)
 
 	svg = vis.append("svg")
 	    .attr("width", w)
-	    .attr("height", h);
+	    .attr("height", h)
 
-	svg.append("defs")
+	point = svg.node().createSVGPoint()
+	node = initNode();
+	document.body.appendChild(node)
+
+	zoomContainer = svg.append("g")
+	    .call(zoom)
+	    .on("dblclick.zoom", null)
+	    
+	var rect = zoomContainer.append("rect")
+	    .attr("width", w)
+	    .attr("height", h)
+	    .style("fill", "none")
+	    .style("pointer-events", "all");
+
+	graphContainer = zoomContainer.append("g")
+
+/*        var slider = vis.append("p").append("input")
+	  .datum({})
+	  .attr("type", "range")
+	  .attr("value", zoom.scaleExtent()[0])
+	  .attr("min", zoom.scaleExtent()[0])
+	  .attr("max", zoom.scaleExtent()[1])
+	  .attr("step", (zoom.scaleExtent()[1] - zoom.scaleExtent()[0]) / 100)
+	  .on("input", slided);
+*/
+/*	svg.append("defs")
 	    .selectAll("marker")
     	    .data(["suit"]).enter()
 	    	.append("marker")
@@ -69,32 +125,10 @@ d3.graph = function() {
 	    	    .attr("orient", "auto")
 	    	.append("path")
 	    	    .attr("d", "M0,-5L10,0L0,5Z")
-		    .style("fill", "#a3be99")
-	    	    .style("stroke", "#a3be99");
-//	    	    .style("opacity", "0.6");
+		    .style("fill", "gray")
+	    	    .style("stroke", "gray");
+//	    	    .style("opacity", "0.6");*/
 
-	point = svg.node().createSVGPoint()
-
-	node = initNode();
-    	document.body.appendChild(node)
-
-	force = d3.layout.force() 
-            .size([w, h])
-            .charge(charge) 
-            .linkDistance(linkDistance);
-
-	drag = force.drag()
-            .on("dragstart", function(d) {
-		d.fixed = true;
-	    })
-            .on("drag", function(d) {
-		d.px = validate(d.px, 0, w);
-		d.py = validate(d.py, 0, h);
-	    })/*	
-            .on("dragend", function(d) {
-		if (d.x < 16 || d.x > w-16 || d.y < 16 || d.y > h-16)
-		    d.fixed = false;
-	    })*/;
     }
 
     /**
@@ -114,22 +148,36 @@ d3.graph = function() {
    /**
      * Return or set height of the svg element
      */
-    graph.height = function() {
+    graph.height = function(v) {
 	if (!arguments.length) return height
 	height = v == null ? getHeight : d3.functor(v)
 
 	return graph;
     };
 
+    /**
+     * Return or set height of the svg element
+     */
+    graph.imagePath = function(v) {
+	if (!arguments.length) return imgPath
+	imgPath = v
+
+	return graph
+    };
+
     /*
      * load JSON into widget
      */
     graph.load = function(json) {
-	var map = {}, from, to, root = null, w = width(), h = height();
+	var map = {}, from, to, w = width(), h = height();
 
 	// reset graph array	
+	root = null;
     	nodes = json.nodes;
     	links = json.relationships;	
+    	
+//    	alert("nodes: " + nodes);
+//    	alert("links: " + links);
 
     	// collect all nodes
     	for (var i=0;i<nodes.length;++i) {
@@ -139,6 +187,8 @@ d3.graph = function() {
 	    node.more = false;
 	    node.selected = false;
 	    node.links = {};
+	    node.color = getColor(node);
+	    node.stroke = getStrokeColor(node);
 
    	    if (indexOf(node.extras, 'root') !== -1)
                 root = node;    
@@ -148,9 +198,10 @@ d3.graph = function() {
 
         // set the root node to the graph centre
         if (null != root) {
-            root.fixed = true;
+/*            root.fixed = true;
 	    root.x = w/2;
-	    root.y = h/2;
+	    root.y = h/2;*/
+	    root.color = "red";
         } 
 
         // alert(root);
@@ -176,15 +227,18 @@ d3.graph = function() {
 
     graph.update = function() {
 	var _nodes = [], _links = [];
+	
+	if (null != root)
+	    addLegend(0, "Current " + getName(root), root.color, root.stroke, getImage(root), getLabel(root));
 
         for (var i=0;i<nodes.length;++i)
 	    if (!nodes[i].hidden) {
 	        _nodes.push(nodes[i]);
-		
-		if (!legend.has(nodes[i].type)) {
-		    addLegend(legend.size, getName(nodes[i]), getColor(nodes[i]), getStrokeColor(nodes[i]), getImage(nodes[i]));
+
+		if (root != nodes[i] && !legend.has(nodes[i].type)) {
+		    addLegend(legend.size + 1, getName(nodes[i]), nodes[i].color, nodes[i].stroke, getImage(nodes[i]), getLabel(nodes[i]));
 		    legend.add(nodes[i].type);
-                }
+                } 
             }
 
         for (var i=0;i<links.length;++i) 
@@ -197,13 +251,13 @@ d3.graph = function() {
            .start();
 
         // Update the links…
-        glinks = svg.selectAll("line.graph-link")
+        glinks = graphContainer.selectAll("line.graph-link")
             .data(_links);
 
     	// Enter any new links.
 	glinks.enter().append("line")
             .attr("class", "graph-link")
-	    .style("marker-end",  "url(#suit)")
+	//    .style("marker-end",  "url(#suit)")
             .attr("x1", function(d) { return d.source.x; })
             .attr("y1", function(d) { return d.source.y; })
             .attr("x2", function(d) { return d.target.x; })
@@ -214,7 +268,7 @@ d3.graph = function() {
 
 
        // Update the nodes…
-        gnodes = svg.selectAll("g.graph-node")
+        gnodes = graphContainer.selectAll("g.graph-node")
             .data(_nodes, function(d) { return d.id; });
   
         var newNodes = gnodes.enter().append("g")
@@ -223,26 +277,32 @@ d3.graph = function() {
             .call(drag)
    	    .on('mouseover', showProperties)
             .on('mouseout', hideProperties)
-            .on("dblclick", collapse); 
+            .on("dblclick", openUrl)
     
         newNodes.append("circle")
 	    .attr("cx", 0)
 	    .attr("cy", 0);
-            
-        newNodes.append("image")
-            .attr("xlink:href", getImage)
-            .attr("x", -radius/2)
-            .attr("y", -radius/2)
-            .attr("width", radius + "px")
-            .attr("height", radius + "px"); 	
-  
+
+       if (null != imgPath)
+	    newNodes.append("image")
+		.attr("xlink:href", getImage)
+		.attr("x", -radius/2)
+		.attr("y", -radius/2)
+		.attr("width", radius + "px")
+		.attr("height", radius + "px"); 	
+	else
+	    newNodes.append("text")
+     		.attr("text-anchor", "middle")
+     		.attr("dominant-baseline", "middle")
+		.text(getLabel);
+              
         // Exit any old nodes.
         gnodes.exit().remove();
 
         gnodes.selectAll("circle")
 	    .attr("r", getRadius)
-	    .attr("fill", getColor)
-	    .attr("stroke", getStrokeColor);
+	    .attr("fill", function(d) { return d.color; })
+	    .attr("stroke", function(d) { return d.stroke; });
 
         force.on("tick", tick);
 
@@ -274,14 +334,13 @@ d3.graph = function() {
 	    scrollTop  = document.documentElement.scrollTop || document.body.scrollTop,
             scrollLeft = document.documentElement.scrollLeft || document.body.scrollLeft
 
+	point.x = tbbox.x - node.offsetWidth / scale;
+        point.y = tbbox.y - node.offsetHeight / (2 * scale);
 
-	point.x = tbbox.x + scrollLeft;
-        point.y = tbbox.y + scrollTop;
+	var pt = point.matrixTransform(matrix),
+	    top = pt.y + scrollTop,
+	    left = pt.x + scrollLeft;
 
-        var pt = point.matrixTransform(matrix),
-	    top = pt.y - node.offsetHeight/2,
-	    left = pt.x - node.offsetWidth;
-  
         nodel.style({ opacity: 1, 'pointer-events': 'all', top: top + 'px', left: left + 'px'});
     }
 
@@ -299,29 +358,40 @@ d3.graph = function() {
 
 	d.collapsed = !d.collapsed;
 //	alert(d.collapsed);
-	
 	d.more = false; 
-	for (n1 in d.links) {
-	    d.links[n1].hidden = d.collapsed;
-	}
 	
 	if (d.collapsed) {
-	    var n, hidden;
+	    var n, n1, n2;
+	    for (n1 in d.links) 
+	    	d.links[n1].hidden = true;
+	    
 	    for (n1 in d.links) {
-	        hidden = true; 
 	    	n = d.links[n1];
 	        for (n2 in n.links) {
 		    if (!n.links[n2].hidden && !n.links[n2].collapsed) {
-		        hidden = false;
+		        n.hidden = false;
 		        break;
                     }			
                 } 
+            }
+
+	    for (n1 in d.links) {
+	    	n = d.links[n1];
+		if (n.hidden) {
+		    for (n2 in n.links) {
+			if (!n.links[n2].hidden && !n.links[n2].collapsed) {
+			    n.hidden = false;
+			    break;
+		        }			
+		    } 
 	
-                n.hidden = hidden;
-	        if (hidden && !d.more)
-		    d.more = true;	    		
+		    if (n.hidden && !d.more)
+			d.more = true;
+		}	    		
             } 
-        }
+        } else 
+	    for (n1 in d.links) 
+	    	d.links[n1].hidden = false;
         
     //    alert("more:" +d.more);
 
@@ -422,6 +492,20 @@ d3.graph = function() {
     }
 
     // Color leaf nodes orange, and packages white or blue.
+    function getLabel(d) {
+	if (d.type==='researcher')
+	    return "R";
+        if (d.type==='grant') 
+            return "G";
+        if (d.type==='publication')
+            return "P";
+        if (d.type==='dataset')
+            return "D";
+        if (d.type==='institution')
+      	    return "I";
+	return '';	
+    }    
+
     function getName(d) {
 	if (d.type==='researcher')
 	    return "Researcher";
@@ -438,7 +522,6 @@ d3.graph = function() {
   	
 
     function getColor(d) {
-	
 	if (d.type==='researcher')
 	    return "#6ecf9c";
         if (d.type==='grant') 
@@ -448,7 +531,7 @@ d3.graph = function() {
         if (d.type==='dataset')
             return "#fa7d79";
         if (d.type==='institution')
-      	    return "#545544";
+      	    return "#B2B2B2"; //"#545544";
 
 	return "black";
     }
@@ -463,7 +546,7 @@ d3.graph = function() {
         if (d.type==='dataset')
             return "#F0736F";
         if (d.type==='institution')
-	    return "#4A4B3A";
+	    return "#808080"; //"#4A4B3A";
          
 	return "black";
     }
@@ -483,11 +566,13 @@ d3.graph = function() {
 	return ''; 
     }
 
-    function addLegend(index, text, color, strokeColor, image) {
+    function addLegend(index, text, color, strokeColor, image, label) {
+	
 	var legend = svg.append("g")
 	    .attr("class", "graph-legend")
-	    .attr("transform", "translate(" + (radius + 5) + "," + (radius * (index * 2.5 + 1) + 5) + ")");	
-			
+	    .attr("transform", "translate(" + (radius + 5) + "," + (radius * (index * 2.5 + 1) + 5) + ")");
+
+		
 	legend.append("circle")
 	    .attr("cx", 0)
 	    .attr("cy", 0)
@@ -495,12 +580,19 @@ d3.graph = function() {
     	    .attr("fill", color)
 	    .attr("stroke", strokeColor);	
             
-        legend.append("image")
-            .attr("xlink:href", image)
-            .attr("x", -radius/2)
-            .attr("y", -radius/2)
-            .attr("width", radius + "px")
-            .attr("height", radius + "px"); 	
+	if (null != imgPath)
+	    legend.append("image")
+		.attr("xlink:href", image)
+		.attr("x", -radius/2)
+		.attr("y", -radius/2)
+		.attr("width", radius + "px")
+		.attr("height", radius + "px"); 	
+	else
+	    legend.append("text")
+     		.attr("text-anchor", "middle")
+     		.attr("dominant-baseline", "middle")
+		//.attr({ position : "absolute", top: "50%", left: "50%" }) // transform: "translateX(-50%) translateY(-50%)
+		.text(label);
 
 	legend.append("text")
 	    .text(text)
@@ -522,41 +614,101 @@ d3.graph = function() {
     }
 
     function getPropertiesHtml(d) {
-        var html = "<ul class='tip-content'><li class='tip-header'><div class='tip-type'>" + d.properties.node_type + ", " + d.properties.node_source + " </div><div class='tip-id'>[" + d.id + "]</div></li>";
-  
-/*	html += "<li class='tip-line'><div class='tip-key'>collapsed</div><div class='tip-value'>" + d.collapsed + "</div></li>";
-        html += "<li class='tip-line'><div class='tip-key'>hidden</div><div class='tip-value'>" + d.hidden + "</div></li>";
-        html += "<li class='tip-line'><div class='tip-key'>more</div><div class='tip-value'>" + d.more + "</div></li>";*/
-        
+        var html = "<ul class='tip-content'>";
+
+	//html += "<li class='tip-header'><div class='tip-type'>" + d.properties.node_type + ", " + d.properties.node_source + " </div><div class='tip-id'>[" + d.id + "]</div></li>";
+          
         for(var p in d.properties) {
-	    html += "<li class='tip-line'><div class='tip-key'>" + p + "</div><div class='tip-value'>" + d.properties[p] + "</div></li>";
+	    if (p === 'key')
+		continue;
+	    var name;
+	    var property = d.properties[p];
+	    if (p === "rda_url")
+		name = "URL";
+	    else if (p === "node_source") {
+		name = "Source";
+		property = property.toUpperCase();
+	    } else if (p === "node_type") {
+		name = "Type";
+		property = property.toUpperCase();
+	    } else {
+		name = p.split("_").map(function (e) {
+		    return e.charAt(0).toUpperCase() + e.substr(1);
+		}).join(" ");
+	    }
+
+	    html += "<li class='tip-line'><div class='tip-key'>" + name + "</div><div class='tip-value'>" + property + "</div></li>";
         }
 	 
         return html + "</ul>"; 
     }
+
+    function zoomed() {
+//	alert("zoomed");
+        scale = d3.event.scale
+//	alert("scale: " + scale)
+        graphContainer.attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")")
+//       slider.property("value",  d3.event.scale);
+    }
+
+    function dragstart(d) {
+	d.fixed = true
+	d3.event.sourceEvent.stopPropagation();
+        d3.select(this).classed("dragging", true);
+    }
+
+    function draged(d) {
+//	d.px = validate(d.px, 0, width())
+//	d.py = validate(d.py, 0, height())
+	
+	d3.select(this).attr("cx", d.x = d3.event.x).attr("cy", d.y = d3.event.y);
+    }
+
+    function dragended(d) {
+        d3.select(this).classed("dragging", false);
+    }
+    
+    function openUrl(d) {
+	window.open("http://" + d.properties.key, '_blank', 'location=yes,scrollbars=yes,status=yes')
+    }
+
+/*    function slided(d) {
+//	alert("slided: " + zoom);
+        zoom.scale(d3.select(this).property("value"))
+          .event(zoomContainer);
+    }*/
 
     return graph;
 };
 
 
 $(document).ready(function() {
-//	alert("ready");
-
-    var graph = d3.graph();
-    d3.select(".graph").call(graph);	
-
     var parser = document.createElement('a');
    
     parser.href = window.location.href;
    
     var path = parser.pathname.split("/");
     if (path.length >= 3) {
-        var jsonName = "http://ec2-52-25-66-82.us-west-2.compute.amazonaws.com/rda/" + path[1] + "-" + path[2] + ".json";	
+    //    var jsonName = "/rda/" + path[1] + "-" + path[2] + ".json";	
+//	var jsonName = "http://graph.rd-alliance.org.s3.amazonaws.com/rda/" + path[1] + "-" + path[2] + ".json";
+	var jsonName = "http://rd-switchboard.s3.amazonaws.com/rda/" + path[1] + "-" + path[2] + ".json";
 	d3.json(jsonName, function(error, json) {
-	   if (null == error) 
+            if (null == error) {
+        	//alert("json: " + json);
+	        var graph = d3.graph();
+	        //alert("graph: " + graph);
+	        d3.select(".graph")
+		    .style("visibility", "visible")
+		    .call(graph);
    	        graph.load(json).update();
-
-	});
+   	    } else {
+	        d3.select(".graph")
+		    .attr("class", "graph-void")
+		    .style("visibility", "visible")
+		    .append("span")
+		        .text("Switchboard Widget: This collection has no related party record, grant or connected dataset.");
+            }
+        });
     }
 });
 

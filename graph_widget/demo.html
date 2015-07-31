@@ -1,0 +1,22 @@
+<html><head>
+
+<link rel="stylesheet" type="text/css" href="assets/css/graph_widget.css">
+
+</head><body>
+
+<script src="bower_components/d3/d3.min.js"></script>
+<script src="bower_components/jquery/dist/jquery.min.js"></script>
+<script src="assets/js/graph_widget.js"></script> 
+
+<script>
+$(document).ready(function() {
+    var jsonName = "http://rd-switchboard.net/graph/graph.php?graph=2007-08-voyage-mineralogy-biota-433724&id=demo";
+    graph_init(jsonName);
+});
+
+</script>
+
+<div class="graph" style="visibility: visible;"/>
+
+
+</body></html>

@@ -46,7 +46,7 @@ d3.graph = function() {
 	radius = 16,
 	legend = new Set(),
 	scale = 1,
-	imgPath = "/applications/apps/graph_widget/assets/images/";
+	imgPath = "assets/images/";
 	
 
     /**
@@ -669,46 +669,53 @@ d3.graph = function() {
     }
     
     function openUrl(d) {
-	window.open("http://" + d.properties.key, '_blank', 'location=yes,scrollbars=yes,status=yes')
+	window.open("http://" + d.properties.key.replace("researchdata.ands.org.au", "rd-switchboard.net"), '_blank', 'location=yes,scrollbars=yes,status=yes')
     }
 
 /*    function slided(d) {
 //	alert("slided: " + zoom);
         zoom.scale(d3.select(this).property("value"))
           .event(zoomContainer);
-    }*/
+    }*/   
 
     return graph;
 };
 
+var graph_init = function(jsonName, cb) {
+    d3.json(jsonName, function(error, json) {
+        if (null == error) {
+            var graph = d3.graph();
+	    d3.select(".graph")
+		.style("visibility", "visible")
+		.call(graph);
+   	    graph.load(json).update();
 
-$(document).ready(function() {
+            if (typeof(cb) == "function") {
+		cb (null, json);
+	    }
+   	} else {
+	    d3.select(".graph")
+	       .attr("class", "graph-void")
+	       .style("visibility", "visible")
+	       .append("span")
+		.text("Switchboard Widget: This collection has no related party record, grant or connected dataset.");
+            }
+	
+	    if (typeof(cb) == "function") {
+		cb (error);
+	    }
+        });
+    }
+
+/*$(document).ready(function() {
     var parser = document.createElement('a');
    
     parser.href = window.location.href;
    
     var path = parser.pathname.split("/");
     if (path.length >= 3) {
-    //    var jsonName = "/rda/" + path[1] + "-" + path[2] + ".json";	
-//	var jsonName = "http://graph.rd-alliance.org.s3.amazonaws.com/rda/" + path[1] + "-" + path[2] + ".json";
-	var jsonName = "http://rd-switchboard.s3.amazonaws.com/rda/" + path[1] + "-" + path[2] + ".json";
-	d3.json(jsonName, function(error, json) {
-            if (null == error) {
-        	//alert("json: " + json);
-	        var graph = d3.graph();
-	        //alert("graph: " + graph);
-	        d3.select(".graph")
-		    .style("visibility", "visible")
-		    .call(graph);
-   	        graph.load(json).update();
-   	    } else {
-	        d3.select(".graph")
-		    .attr("class", "graph-void")
-		    .style("visibility", "visible")
-		    .append("span")
-		        .text("Switchboard Widget: This collection has no related party record, grant or connected dataset.");
-            }
-        });
+    	var jsonName = "http://rd-switchboard.s3.amazonaws.com/rda/" + path[1] + "-" + path[2] + ".json";
+	graph_init(jsonName);
     }
-});
+});*/
 

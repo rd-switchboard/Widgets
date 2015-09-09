@@ -2,7 +2,7 @@
  * Graph Widget
  *
  * @Create by Dima Kudravcev (dmitrij@kudriavcev.info)
- * @Version 3.0 - 2015-06-01
+ * @Version 3.1 - 2015-06-01
  */
 
 

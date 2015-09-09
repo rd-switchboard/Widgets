@@ -112,7 +112,7 @@ d3.json(jsonName, function(error, json) {
 
 Gets or sets the width of the Graph. The default width will be equals to the width of the provided div.
 
-```java script
+```javascript
 var w = graph.width() // to get the graph width
 graph.width(w * 2) // to set the graph width
 
@@ -122,7 +122,7 @@ graph.width(w * 2) // to set the graph width
 
 Gets or sets the height of the Graph. The default height will be equals to the width of the provided div.
 
-```java script
+```javascript
 var h = graph.height() // to get the graph height
 graph.height(h * 2) // to set the graph height
 
@@ -132,7 +132,7 @@ graph.height(h * 2) // to set the graph height
 
 Gets or sets the path to the folder with ghraph images. The default path is `assets/images/`.
 
-```java script
+```javascript
 var p = graph.imagePath() // to get the graph image path
 graph.imagePath(myPath) // to set the graph image path
 
@@ -142,7 +142,7 @@ graph.imagePath(myPath) // to set the graph image path
 
 Load the graph data from a provided JSON file
 
-```java script
+```javascript
 graph.load(json)
 ```
 
@@ -150,7 +150,7 @@ graph.load(json)
 
 Start graph upadte process. This function will need to call only once. If any node will be moved by user, the process will be resumed automatically.
 
-```java script
+```javascript
 graph.update()
 ```
 

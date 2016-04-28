@@ -1,4 +1,4 @@
-# RD-Swicthboard Graph Widget
+# RD-Switchboard Graph Widget
 
 ### Requiriements
 
